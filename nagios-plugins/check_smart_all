@@ -1,0 +1,28 @@
+#!/bin/bash
+
+PATH=$PATH:/usr/local/bin
+
+which check_smartmon2.py  &>/dev/null || { echo "check_smartmon2.py isnt installed"; exit 2; };
+which smartctl            &>/dev/null || { echo "smartctl isnt installed"; exit 2; };
+
+OUT=`mktemp`
+CODE=0
+
+for DISK in $( cat /etc/smartd.conf  | grep ^/dev | cut -d\  -f1 )
+do
+    echo ========= $DISK >>$OUT
+    check_smartmon2.py -d $DISK  &>>$OUT
+    if [[ $? != 0 ]]
+    then    CODE=1
+    fi
+
+done
+
+if [[ $CODE == 0 ]]
+then    echo "SMARTCTL OK"
+else    echo "SMARTCTL WARN"
+fi
+
+cat $OUT
+rm $OUT
+exit $CODE

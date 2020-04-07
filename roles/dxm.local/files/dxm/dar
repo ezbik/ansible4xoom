@@ -1,0 +1,29 @@
+dxm:
+        -R /
+
+        #-g var/www/jerodmorris.com
+        #-g var/www/assemblycall.com
+        -g var
+        -g home
+        -g usr/local
+        -g etc
+        -g opt
+        #-g root
+
+        -P usr/local/apache/logs
+        -P usr/local/urchin/data
+        -P var/cache
+        -P var/log
+        -P var/tmp
+        -P var/named/chroot/proc
+        -P var/named/run-root/proc
+        -P var/wp_backup
+        -P var/dxm.backups
+        -P var/www/*/wp-content/w3tc/*
+        -P var/www/*/wp-content/uploads/backupbuddy_backups
+        -P var/www/*/wp-content/cache/*
+        -P var/www/*/wp-content/managewp/backups
+        -P var/www/*/wp-content/uploads/backupbuddy_temp
+        -P var/www/*/wp-content/updraft
+        -P var/www/*/wp-content/uploads/wp-clone
+

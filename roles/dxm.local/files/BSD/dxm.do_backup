@@ -1,0 +1,440 @@
+#!/usr/bin/env bash
+#set -x
+
+# DXM 1.3.5
+# Pavel Piatruk, 2010-12-24
+# Nick Keefen, 2009-11-15
+# http://www.nksupport.com
+
+source /etc/dxm/dxm.conf 
+echo -e "\n\n\n@@@@@@@@\n\n===START backup  `date` by `readlink /proc/$PPID/exe` \n\n@@@@@@@@\n" | tee -a $LOG
+
+function exitmessage {
+echo "ERROR: $1, exiting" | tee -a $LOG
+exit 1
+}
+
+
+
+
+test -f $EXCLUDE 		|| exitmessage "exclude file $EXCLUDE doesnt exist"
+test -f $DIRLISTRSYNC 		|| exitmessage "rsync list file $DIRLISTRSYNC doesnt exist" 
+test -f $DIRLISTTAR 		|| exitmessage "tar dirlist file $DIRLISTTAR doesnt exist"
+
+export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin
+export HOME=/root
+
+
+
+#simple checks
+
+if [ -f "$LOCKFILE" ] ; 
+then 	echo "== lockfile $LOCKFILE exist, aborting. check whether dxm is running" | tee -a $LOG
+	exit
+else	echo "== creating lockfile $LOCKFILE" | tee -a $LOG
+	echo $$ > "$LOCKFILE"
+fi
+
+
+if [ $DOFTP == 1 ] 
+then 	chmod 600  ~/.netrc
+	echo 'set  net:max-retries  4
+	set net:reconnect-interval-multiplier 1
+	set net:reconnect-interval-base 10' > ~/.lftprc 
+fi
+
+if [ $DOFTP == 1 ] && ! which lftp
+then 	echo "FTP CRITICAL - please install lftp binary" | tee  $STATUSFTP | tee -a $LOG
+	echo "== removing lockfile $LOCKFILE" | tee -a $LOG
+	rm -vf "$LOCKFILE" 2>&1 | tee -a $LOG
+	DOFTP=0
+fi
+
+if [ $DOFTP == 1 ] && ! lftp $FTPHOST -e "cd $FTPDIR; exit"
+then    echo "FTP CRITICAL - cant connect to $FTPHOST or cd to $FTPDIR" \
+		| tee $STATUSFTP | tee -a $LOG
+	DOFTP=0
+fi
+
+if [ $DORSYNC == 1 ] && ! /usr/bin/rsync $RSYNCOPT /etc/hosts $REMOTEHOSTRSYNC:$REMOTEDIRRSYNC 
+then    echo "RSYNC CRITICAL - cant connect to $REMOTEHOSTRSYNC or cd to $REMOTEDIRRSYNC " | tee $STATUSRSYNC | tee -a $LOG
+	DORSYNC=0
+fi
+
+if [ "$DOGPG" == 1 ] && ! gpg -k $GPGPUBKEY 
+then	echo "GPG CRITICAL - GPGPUBKEY $GPGPUBKEY isnt available" | tee -a $LOG  | tee $STATUS
+	DOGPG=0
+fi
+
+if [ $DOS3 == 1 ]
+then
+	chmod 600  $S3KEYS
+        . $S3KEYS
+        ACTUALPATH=`echo $S3PATH|cut -d: -f2-`
+        if $S3CMD list "$S3PATH" | grep "$ACTUALPATH"
+        then    echo "S3 worked"
+        else    echo "S3 CRITICAL - cant connect to $S3PATH" | tee $STATUSS3 | tee -a $LOG
+                DOS3=0
+        fi
+fi
+
+#end of checks
+
+mkdir -p `dirname $LOG`
+TODAY=`date +%Y%m%d`
+EXITFTPALL=0
+
+
+
+
+# start mysql backup
+if [ "$DOMYSQL" == 1 ] ; then
+echo "===START mysqldump `date` $0 " | tee -a $LOG
+mkdir -p `dirname $STATUSMYSQL`
+mkdir -p "$DUMPDIR" 
+chmod 700 "$DUMPDIR"
+
+[ -z "$EXCLUDED_TABLES_PATTERN" ] && EXCLUDED_TABLES_PATTERN=OQEY39Tufw
+ALLTABLES=`mysql -sNe "select CONCAT(TABLE_SCHEMA,'.',TABLE_NAME) from information_schema.tables" | \
+	grep -Ev "$EXCLUDED_TABLES_PATTERN" | grep -E "$INCLUDED_TABLES_PATTERN" `
+EXITCODEALL="0"
+
+
+for DB in `echo $ALLTABLES | sed "s@ @\n@g" |cut -d. -f1|sort -u`
+do
+	echo "==purging old $DB " | tee -a $LOG
+	rm -vf $DUMPDIR/$DB.sql 2>&1  | tee -a $LOG
+done
+
+
+for TBL in $ALLTABLES 
+do 
+	echo "==dumping table $TBL" | tee -a $LOG
+	DB=`echo $TBL|cut -d. -f1`
+	TBL=`echo $TBL|cut -d. -f2`
+	mysqldump -q $DB $TBL 2>>$LOG 1>> $DUMPDIR/$DB.sql
+	EXITCODE=$?
+	echo EXITCODE $EXITCODE  | tee -a $LOG
+	EXITCODEALL=$(($EXITCODE+$EXITCODEALL))
+done
+
+EXITCODE=$EXITCODEALL
+
+for DB in `echo $ALLTABLES | sed "s@ @\n@g" |cut -d. -f1|sort -u`
+do
+	echo "==gzipping $DB " | tee -a $LOG
+	gzip -1fv $DUMPDIR/$DB.sql
+	chmod 600 $DUMPDIR/$DB.sql.gz
+done
+
+
+
+echo "===END mysqldump `date` $0 "  | tee -a $LOG
+
+if [ "$EXITCODE" == "0" ] || [ "$EXITCODE" == "1" ] 
+then echo "MYSQL OK" > $STATUSMYSQL
+else echo "MYSQL CRITICAL - see $LOG" > $STATUSMYSQL
+fi
+
+fi
+#end mysql backup
+
+
+
+
+# start postgresql backup
+if [ "$DOPOSTGRESQL" == 1 ] ; then
+echo "===START postgresql backup  `date` $0 " | tee -a $LOG
+
+mkdir -p "$PGDUMPDIR"
+mkdir -p `dirname $STATUSPOSTGRESQL`
+chmod 700 "$PGDUMPDIR"
+
+EXITCODEALL="0"
+
+echo "===we have to backup the following DBs:" | tee -a $LOG
+su postgres -c "psql -l"  | awk '{ print $1}' | grep -vE '^:|^-|^List|^Name|^$|^\(' | tee -a $LOG
+for DB in ` su postgres -c "psql -l"  | awk '{ print $1}' | grep -vE '^:|^-|^List|^Name|^$|^\(' `;do
+	echo ==$DB | tee -a $LOG
+	su postgres -c "pg_dump $DB"  2>>$LOG 1> $PGDUMPDIR/$DB.sql
+	EXITCODE=$?
+	gzip -1fv $PGDUMPDIR/$DB.sql
+	chmod 600 $PGDUMPDIR/$DB.sql.gz
+	echo EXITCODE $EXITCODE  | tee -a $LOG
+	EXITCODEALL=$(($EXITCODE+$EXITCODEALL))
+done
+
+echo "===END POSTGRESQL `date` $0 "  | tee -a $LOG
+
+if [ "$EXITCODE" == "0" ] || [ "$EXITCODE" == "1" ] 
+then echo "POSTGRESQL OK" > $STATUSPOSTGRESQL
+else echo "POSTGRESQL CRITICAL - see $LOG" > $STATUSPOSTGRESQL
+fi
+
+fi
+#end postgresql backup
+
+
+
+#start file backup
+if [ "$DOFILES"  == 1 ] ; then
+echo "===START file backup `date` "  | tee -a $LOG
+
+echo "==creating list of installed packages"
+test -f /bin/rpm && /usr/lib/rpm/rpmq -q --all --qf '%{name}-%{version}-%{release}.%{arch}.rpm\n' \
+	|sort > /var/lib/pkg.list.rpm && ls -la /var/lib/pkg.list.rpm
+test -f /usr/bin/dpkg && dpkg -l | sort > /var/lib/pkg.list.deb && ls -la /var/lib/pkg.list.deb
+echo "==done"
+
+
+if [ $DOFILELIST == 1 ] 
+then
+	echo "==creating list of files' permissions"
+	find / -printf '%u:%g %m %y %p\n' > /var/lib/files.list
+	chmod 600 /var/lib/files.list
+	ls -la /var/lib/files.list
+	echo "==done"
+else
+	echo "==NOT creating list of files' permissions; DOFILELIST=0"
+fi
+
+mkdir -p "$DESTDIR" 
+chmod 700 "$DESTDIR"
+mkdir -p `dirname $STATUS`
+
+# if DUMPDIR isnt part of any DIRLISTTAR item, create special TAROPTIONS variable to include DUMPDIR in tar
+[ "$DOMYSQL"  == 1 ] &&  echo $DUMPDIR | grep -vf $DIRLISTTAR &&  \
+	TAROPTIONS="$DUMPDIR"   && echo "DUMPDIR wasnt in DIRLISTTAR - fixed" | tee -a $LOG
+
+[ "$DOPOSTGRESQL"  == 1 ] &&  echo $PGDUMPDIR | grep -vf $DIRLISTTAR &&  \
+	TAROPTIONS=$TAROPTIONS" $PGDUMPDIR"   && echo "PGDUMPDIR wasnt in DIRLISTTAR - fixed" | tee -a $LOG
+
+# ONLY exclude dxm/rsync if DORSYNC=1
+[ "$DORSYNC" == 1 ] && TAROPTIONS=$TAROPTIONS" -X $DIRLISTRSYNC" && \
+	echo "$DIRLISTRSYNC has been excluded, since DORSYNC=1" | tee -a $LOG
+
+# 200907829.00.tar, 200907829.00.tar.lst -- full backup
+# 200907829.01.tar, 200907829.01.tar.lst -- incr
+
+LASTFULL=`find $DESTDIR -name '????????.00.tgz' -print| rev | cut -d/ -f1| rev| sort|tail -n1|cut -d. -f1`
+	
+# LASTFULL should be like 20090729.
+
+FORCEFULLBACKUP=0
+echo $FORCEFULLBACKUPDAYS | grep `date +%u` && FORCEFULLBACKUP=1 
+echo "FORCEFULLBACKUP=$FORCEFULLBACKUP, today is `date +%u`, allowed day list is $FORCEFULLBACKUPDAYS "
+
+WEEK_AGO=$( perl -e ' use POSIX qw(strftime); print (strftime("%Y%m%d", localtime(time()-10*24*3600)),"\n") ' )
+
+if  [ -z "$LASTFULL" ] || [ "$LASTFULL" -le "$WEEK_AGO" ] || [ "$FORCEFULLBACKUP" == 1 ]
+then
+	echo "===last full backup doesnt exist or too old : $LASTFULL. do it as $DESTDIR/$TODAY.00.tgz " | tee -a $LOG 
+	rm -vf $DESTDIR/$TODAY.00.tgz.lst 2>&1 | tee -a $LOG
+	gtar --numeric-owner -czpf "$DESTDIR/$TODAY.00.tgz" -T $DIRLISTTAR -g $DESTDIR/$TODAY.00.tgz.lst \
+		-X $EXCLUDE --exclude $DESTDIR $TAROPTIONS 2>&1  | tee -a $LOG 
+	EXITTAR=${PIPESTATUS[0]}
+	echo "===tar-s exit code was $EXITTAR" | tee -a $LOG
+
+	NEWFILE=$DESTDIR/$TODAY.00.tgz
+
+	if [ "$DOGPG" == 1 ] 
+	then	echo "== start gpg encryption $NEWFILE" | tee -a $LOG
+		rm -f $NEWFILE.lst.gpg $NEWFILE.gpg
+		gpg  --batch --encrypt  -r $GPGPUBKEY --compress-algo  none $NEWFILE  		2>&1 | tee -a $LOG
+		GPGEXITCODE=${PIPESTATUS[0]}
+		echo "== GPGEXITCODE was $GPGEXITCODE" | tee -a $LOG
+		echo "== end gpg encryption" | tee -a $LOG
+		[ "$GPGEXITCODE" == 0 ] || (echo "GPG ERROR" | tee $STATUS | tee -a $LOG ; exit) 
+
+		echo "== start gpg encryption $NEWFILE.lst" | tee -a $LOG
+		gpg  --batch --encrypt  -r $GPGPUBKEY --compress-algo  none $NEWFILE.lst	2>&1 | tee -a $LOG
+		GPGEXITCODE=${PIPESTATUS[0]}
+		echo "== GPGEXITCODE was $GPGEXITCODE" | tee -a $LOG
+		echo "== end gpg encryption" | tee -a $LOG
+		[ "$GPGEXITCODE" == 0 ] || (echo "GPG ERROR" | tee $STATUS | tee -a $LOG; exit) 
+	
+		echo "== since we have encrypted these files successfully , let's put encrypted files instead of plain" \
+			| tee -a $LOG
+		mv -v $NEWFILE.gpg 	$NEWFILE  	2>&1 | tee -a $LOG
+		mv -v $NEWFILE.lst.gpg 	$NEWFILE.lst  	2>&1 | tee -a $LOG
+	fi
+
+	if [ "$EXITTAR" == "0" ] || [ "$EXITTAR" == "1" ] || [ "$EXITTAR" == "2" ]
+	then echo "TAR OK - `du -h $NEWFILE`"> $STATUS
+	else echo "TAR CRITICAL - see $LOG" > $STATUS
+	fi
+
+
+else
+	echo "===last full backup at $LASTFULL exists. lets make increment to last backup or its last increment" | tee -a $LOG
+	LASTFULLORINCR=`find $DESTDIR/$LASTFULL*tgz | sort | tail -n1 `
+	echo "===LASTFULLORINCR is $LASTFULLORINCR" | tee -a $LOG
+	NEWINDEX=`basename $LASTFULLORINCR | awk -F. '{printf "%.2d\n",$2+1}' `
+	#huy
+	if [ "$DOGPG" == 1 ]
+        then    echo "== start gpg decryption of TAR lst" | tee -a $LOG
+		rm -fv $DESTDIR/$LASTFULL.$NEWINDEX.tgz.lst 
+		gpg  -o  $DESTDIR/$LASTFULL.$NEWINDEX.tgz.lst  -d $LASTFULLORINCR.lst 	2>&1 | tee -a $LOG
+		GPGEXITCODE=${PIPESTATUS[0]}
+                echo "== GPGEXITCODE was $GPGEXITCODE" | tee -a $LOG
+                echo "== end gpg encryption" | tee -a $LOG
+                [ "$GPGEXITCODE" == 0 ] || (echo "GPG ERROR" | tee $STATUS | tee -a $LOG; exit )
+	else 	cp  -v $LASTFULLORINCR.lst   $DESTDIR/$LASTFULL.$NEWINDEX.tgz.lst 	2>&1 | tee -a $LOG
+	fi 
+	gtar --numeric-owner -czpf "$DESTDIR/$LASTFULL.$NEWINDEX.tgz" -T $DIRLISTTAR -g $DESTDIR/$LASTFULL.$NEWINDEX.tgz.lst \
+		-X $EXCLUDE --exclude $DESTDIR 2>&1 $TAROPTIONS | tee -a $LOG
+	EXITTAR=${PIPESTATUS[0]}
+	echo "===tar-s exit code was $EXITTAR" | tee -a $LOG
+
+	NEWFILE="$DESTDIR/$LASTFULL.$NEWINDEX.tgz"
+
+	if [ "$DOGPG" == 1 ] 
+	then	echo "== start gpg encryption $NEWFILE" | tee -a $LOG
+		rm -f $NEWFILE.lst.gpg $NEWFILE.gpg
+		gpg  --batch --encrypt  -r $GPGPUBKEY --compress-algo  none $NEWFILE  		2>&1 | tee -a $LOG
+		GPGEXITCODE=${PIPESTATUS[0]}
+		echo "== GPGEXITCODE was $GPGEXITCODE" | tee -a $LOG
+		echo "== end gpg encryption" | tee -a $LOG
+		[ "$GPGEXITCODE" == 0 ] || (echo "GPG ERROR" | tee $STATUS | tee -a $LOG; exit ) 
+
+		echo "== start gpg encryption $NEWFILE.lst" | tee -a $LOG
+		gpg  --batch --encrypt  -r $GPGPUBKEY --compress-algo  none $NEWFILE.lst	2>&1 | tee -a $LOG
+		GPGEXITCODE=${PIPESTATUS[0]}
+		echo "== GPGEXITCODE was $GPGEXITCODE" | tee -a $LOG
+		echo "== end gpg encryption" | tee -a $LOG
+		[ "$GPGEXITCODE" == 0 ] || (echo "GPG ERROR" | tee $STATUS | tee -a $LOG; exit) 
+
+		echo "== since we have encrypted these files successfully , let's put encrypted files instead of plain" \
+			| tee -a $LOG
+		mv -v $NEWFILE.gpg 	$NEWFILE  	2>&1 | tee -a $LOG
+		mv -v $NEWFILE.lst.gpg 	$NEWFILE.lst  	2>&1 | tee -a $LOG
+	fi
+
+	if [ "$EXITTAR" == "0" ] || [ "$EXITTAR" == "1" ] || [ "$EXITTAR" == "2" ]
+	then echo "TAR OK - `du -h $NEWFILE`"> $STATUS
+	else echo "TAR CRITICAL - see $LOG" > $STATUS
+	fi
+
+fi
+
+echo "===END file backup `date` " 2>&1 | tee -a $LOG
+
+
+
+fi
+# end file backup
+
+
+# start ftp
+if [ "$DOFTP" == "1" ] 
+then 	echo "== start FTP upload at `date`" | tee -a $LOG
+	lftp $FTPHOST -e "debug ; cd $FTPDIR; put $NEWFILE     ; exit" 2>&1 | tee -a $LOG
+	EXITFTP=${PIPESTATUS[0]}
+	echo "== $NEWFILE.tgz has been uploaded , lftp-s exit code is $EXITFTP" | tee -a $LOG
+	EXITFTPALL=$(($EXITFTPALL+$EXITFTP))
+	lftp $FTPHOST -e "debug ; cd $FTPDIR; put $NEWFILE.lst ; exit" 2>&1 | tee -a $LOG
+	EXITFTP=${PIPESTATUS[0]}
+	echo "== $NEWFILE.lst has been uploaded , lftp-s exit code is $EXITFTP" | tee -a $LOG
+	EXITFTPALL=$(($EXITFTPALL+$EXITFTP))
+
+	if [ "$EXITFTPALL" == "0" ] 
+	then 	echo "FTP OK" > $STATUSFTP
+	else 	echo "FTP CRITICAL - upload error, see $LOG" > $STATUSFTP
+	fi
+fi
+
+# end ftp
+
+# start rsync
+
+if [ "$DORSYNC" == 1 ] 
+then
+	echo "== START rsync backup at `date`"  | tee -a $LOG
+	STATUS=""
+
+	for DIR in `cat $DIRLISTRSYNC`
+	do
+		echo "== rsyncing $DIR"  | tee -a $LOG
+		date > $DIR/.dxm.rsync.date
+		/usr/bin/rsync $RSYNCOPT --exclude-from=$EXCLUDE $DIR $REMOTEHOSTRSYNC:$REMOTEDIRRSYNC 2>&1 | tee -a $LOG 
+		EXITRSYNC=${PIPESTATUS[0]}
+		echo "rsync exit status was $EXITRSYNC" | tee -a $LOG
+		if [ $EXITRSYNC == 0 ] || [ $EXITRSYNC == 24 ] || [ $EXITRSYNC == 23 ]
+		then
+			:
+		else
+			STATUS=$STATUS"$DIR=ERR; "
+		fi
+	done
+
+	if  echo "$STATUS" | grep ERR 
+	then 
+		echo "RSYNC CRITICAL - $STATUS"  | tee $STATUSRSYNC 
+	else 
+		echo "RSYNC OK"  | tee $STATUSRSYNC 
+	fi
+	echo "== overall status: `cat $STATUSRSYNC`"  | tee -a $LOG
+	echo "== END rsync backup at `date`"  | tee -a $LOG
+fi
+
+# end rsync
+
+
+
+# start S3
+if [ "$DOS3" == "1" ] 
+then 	echo "== start S3 upload at `date`" | tee -a $LOG
+	$S3SYNC --progress -v -r --delete $DESTDIR $S3PATH  2>&1 | tee -a $LOG
+	EXITS3=${PIPESTATUS[0]}
+	if [ "$EXITS3" == "0" ] 
+	then 	echo "S3 OK" > $STATUSS3
+	else 	echo "S3 CRITICAL - upload error, see $LOG" > $STATUSS3
+	fi
+	echo "== end S3 upload at `date`" | tee -a $LOG
+fi
+# end S3
+
+
+
+
+if [ "$DOFILES"  == 1 ] ; then
+# start cleanup
+# del files which DATE (part of filename) is older than KEEP
+
+if uname -o | grep Linux
+then
+        KEEP_AFTER=$(date -d-$KEEP +%Y%m%d)
+else
+        echo $KEEP | grep -q day && QUANTOR=$((24*3600))
+        echo $KEEP | grep -q week && QUANTOR=$((7*24*3600))
+        echo $KEEP | grep -q month && QUANTOR=$((30*24*3600))
+
+        KEEP_SECONDS=$(( $QUANTOR * $( echo $KEEP | perl -ne 's@[^\d]@@g; print' ) ))
+        KEEP_AFTER=$( perl -e ' use POSIX qw(strftime); print (strftime("%Y%m%d", 
+                localtime(time()-'$KEEP_SECONDS')),"\n") ' )
+fi #uname
+
+echo "===START cleanup `date` " 2>&1 | tee -a $LOG
+echo "===keep files after $KEEP_AFTER " | tee -a $LOG
+for FILE in `find $DESTDIR/ -mindepth 1 -maxdepth 1 -name "????????.*" -print | sort `;
+do      DATE=`basename $FILE | cut -d. -f1`
+        echo -n "===file $FILE was created at $DATE, " | tee -a $LOG
+        if [ "$DATE" -le "$KEEP_AFTER" ]
+        then    echo removing| tee -a $LOG
+                rm -vf "$FILE" 2>&1 | tee -a $LOG
+        else    echo keeping| tee -a $LOG
+        fi # DATE -le
+
+done
+echo "===END cleanup `date` " 2>&1 | tee -a $LOG
+fi
+
+
+# end cleanup
+
+
+
+echo "== removing lockfile $LOCKFILE" | tee -a $LOG
+rm -vf "$LOCKFILE" 2>&1 | tee -a $LOG
+
+

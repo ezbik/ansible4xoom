@@ -1,0 +1,99 @@
+---
+
+######## noLogs start
+
+
+- name: create /etc/systemd/journald.conf.d
+  file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+
+
+- name: copy /etc/systemd/journald.conf.d/10-local.conf
+  copy:
+    src: 10-local.conf
+    dest: /etc/systemd/journald.conf.d/10-local.conf
+
+- name: restart systemd-journald
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: systemd-journald
+
+- name: delete systemd logs
+  shell: "rm -rf /var/log/journal /run/log/journal"
+
+- name: restart systemd-journald
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: systemd-journald
+
+- name: create /etc/cron.hourly/purge_btmp
+  copy:
+    dest: /etc/cron.hourly/purge_btmp
+    mode: '0755'
+    content: |
+        for F in /var/log/btmp /var/log/utmp 
+        do
+        rm $F -f && ln -s /dev/null $F
+        done
+
+        for F in /var/run/utmp /var/log/wtmp
+        do
+        rm $F -f 
+        done
+
+- name: purge btmp
+  shell:    /etc/cron.hourly/purge_btmp
+
+- name: add purge_btmp to autostart
+  copy:
+    dest: /etc/cron.d/purge_btmp
+    content:    |
+        @reboot root /etc/cron.hourly/purge_btmp
+
+### rsyslogd part
+
+
+- name: put nologs at rsyslog
+  copy:
+    src:  10-nossh.conf
+    dest: /etc/rsyslog.d/10-nossh.conf
+  notify: rsyslog restart
+
+
+- name: Ansible find log files
+  find:
+      paths: /var/log
+      patterns: 
+        - "auth.log*"
+        - "syslog*"
+      use_regex: true
+  register: wildcard_files_to_delete
+
+- name: Ansible remove file wildcard
+  file:
+      path: "{{ item.path }}"
+      state: absent
+  with_items: "{{ wildcard_files_to_delete.files }}"
+
+
+- name: create empty log files
+  copy:
+    content: ""
+    dest: "{{ item }}"
+    force: yes
+    mode: '0640'
+    owner: syslog
+    group: adm
+  with_items:
+    - /var/log/auth.log
+    - /var/log/syslog
+  notify: rsyslog restart
+
+
+############### disable SSH logs stop
+
+######## noLogs end
+

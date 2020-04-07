@@ -1,0 +1,59 @@
+#!/bin/bash
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+pgrep -f -l  s3cmd     && exit
+
+source /etc/dxm/dxm.conf || exit 1
+source /etc/dxm/func.inc || exit 1
+
+test -f $LOCKFILE && { echo "DXM is running, $LOCKFILE exists; exit "; exit 2; }
+
+if echo $@ | grep -q -e '--force'
+then    FORCE=1
+fi
+
+# check ftp  backup status; fix unless status is OK
+CODE=0
+if [ "$DOS3" == 1 ]
+then
+        if [ -f $STATUSS3 ]
+        then    if [ "`stat -c %Y $STATUSS3`" -lt "`date +%s -d -1day-9hour`" ]
+                then    DAYS=$(((`date +%s`-`stat -c %Y $STATUSS3`)/3600/24))
+                        TXT=$TXT"S3 CRITICAL - $STATUSS3 $DAYS days old; "
+                        [ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSS3`"; "
+                        grep -q "^S3 OK"  $STATUSS3 || CODE=2
+                fi
+        else    TXT=$TXT"S3 CRITICAL - $STATUSS3 not found; "
+                CODE=2
+        fi
+else    echo "DOS3=0 ; exit"
+        exit
+fi
+
+if [ "$CODE" == 0 ] && [ "$FORCE" != 1 ]
+then    exit
+fi
+
+
+if [ $DOS3 == 1 ]
+then
+        . $S3KEYS
+
+        echo "==testing s3 connection"
+        s3_test_connection   2>&1 
+        if [[ ${PIPESTATUS[0]} == 0 ]]
+        then    echo "== s3 worked"
+        else    echo "S3 CRITICAL - cant connect to $S3PATH" | tee $STATUSS3
+                exit
+        fi
+
+        if s3_sync_dir
+        then    echo S3 OK | tee $STATUSS3
+        else    echo FAIL
+                exit 2
+        fi
+fi
+
+

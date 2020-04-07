@@ -1,0 +1,7 @@
+#!/bin/bash
+
+. /etc/dxm/dxm.conf 
+
+if [ "$DOFTP" == 1 ] 
+then    lftp $FTPHOST -e "cd $FTPDIR ; du -sm  . ; exit"
+fi

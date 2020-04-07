@@ -1,0 +1,6 @@
+/var/log/dxm.*.log {
+    missingok
+    notifempty
+    weekly
+    rotate 7
+}

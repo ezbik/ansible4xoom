@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+
+# Pavel Piatruk
+
+
+TXT="";
+CODE=0
+VERSION=1.3.9
+if test -r /etc/dxm/dxm.conf && source /etc/dxm/dxm.conf 
+then 	:
+else	TXT="unable to read conf file"
+	CODE=2
+fi
+
+
+
+{
+
+# check prerun
+if [ -x "$PRERUN" ]
+then 	if [ -f $STATUSPRERUN ]
+	then    if [ "`stat -c %Y $STATUSPRERUN`" -lt "`date +%s -d -1day-9hour`" ] 
+		then	DAYS=$(((`date +%s`-`stat -c %Y $STATUSPRERUN`)/3600/24 ))
+			TXT=$TXT"PRERUN CRITICAL - $STATUSPRERUN $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+			
+		else 	TXT=$TXT`head -n1 $STATUSPRERUN`"; "
+			grep -E "^PRERUN OK" $STATUSPRERUN || CODE=2
+		fi
+	else    TXT=$TXT"PRERUN CRITICAL - ${STATUSPRERUN} not found; "
+		CODE=2
+	fi
+fi
+
+# check files backup
+if [ "$DOFILES" == 1 ]
+then 	if [ -f $STATUS ]
+	then    if [ "`stat -c %Y $STATUS`" -lt "`date +%s -d -1day-9hour`" ] 
+		then	DAYS=$(((`date +%s`-`stat -c %Y $STATUS`)/3600/24 ))
+			TXT=$TXT"FILES CRITICAL - $STATUS $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+			echo "after files $CODE"
+			
+		else 	TXT=$TXT`head -n1 $STATUS`"; "
+			grep -E "^.AR (OK|PENDING)" $STATUS || CODE=2
+		fi
+	else    TXT=$TXT"FILES CRITICAL - ${STATUS} not found; "
+		CODE=2
+	fi
+fi
+
+# check mysqldump  backup
+if [ "$DOMYSQL" == 1 ]
+then
+	if [ -f $STATUSMYSQL ]
+	then    if [ "`stat -c %Y $STATUSMYSQL`" -lt "`date +%s -d -1day-9hour`" ]
+		then	DAYS=$(((`date +%s`-`stat -c %Y $STATUSMYSQL`)/3600/24))
+			TXT=$TXT"MYSQL CRITICAL - $STATUSMYSQL $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+		else 	if echo $DUMPDIR | grep -qf $EXCLUDE
+			then	TXT=$TXT"MYSQL CRITICAL - DUMPDIR $DUMPDIR is in EXCLUDELIST $EXCLUDE; "
+				CODE=2
+			else 	TXT=$TXT`head -n1 $STATUSMYSQL`"; "
+				grep "^MYSQL OK"  $STATUSMYSQL || CODE=2
+			fi
+		fi
+	else    TXT=$TXT"MYSQL CRITICAL - $STATUSMYSQL not found; "
+		CODE=2
+	fi
+fi
+
+
+# check posgtresql  backup
+if [ "$DOPOSTGRESQL" == 1 ]
+then
+	if [ -f $STATUSPOSTGRESQL ]
+	then    if [ "`stat -c %Y $STATUSPOSTGRESQL`" -lt "`date +%s -d -1day-9hour`" ]
+		then	DAYS=$(((`date +%s`-`stat -c %Y $STATUSPOSTGRESQL`)/3600/24))
+			TXT=$TXT"POSTGRESQL CRITICAL - $STATUSPOSTGRESQL $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+		else 	if echo $DUMPDIR | grep -qf $EXCLUDE
+			then	TXT=$TXT"POSTGRESQL CRITICAL - DUMPDIR $DUMPDIR is in EXCLUDELIST $EXCLUDE; "
+				CODE=2
+			else 	TXT=$TXT`head -n1 $STATUSPOSTGRESQL`"; "
+				grep "^POSTGRESQL OK"  $STATUSPOSTGRESQL || CODE=2
+			fi
+		fi
+	else    TXT=$TXT"POSTGRESQL CRITICAL - $STATUSPOSTGRESQL not found; "
+		CODE=2
+	fi
+fi
+
+
+# check ftp  backup
+if [ "$DOFTP" == 1 ]
+then
+	if [ -f $STATUSFTP ]
+        then    if [ "`stat -c %Y $STATUSFTP`" -lt "`date +%s -d -1day-9hour`" ]
+                then    DAYS=$(((`date +%s`-`stat -c %Y $STATUSFTP`)/3600/24))
+			TXT=$TXT"FTP CRITICAL - $STATUSFTP $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSFTP`"; "
+                        grep -E "^FTP (PENDING|OK)"  $STATUSFTP || CODE=2
+                fi
+        else    TXT=$TXT"FTP CRITICAL - $STATUSFTP not found; "
+                CODE=2
+	fi
+fi
+
+#rsync check
+
+if [ "$DORSYNC" == 1 ]
+then
+	if [ -f $STATUSRSYNC ]
+        then    if [ "`stat -c %Y $STATUSRSYNC`" -lt "`date +%s -d -1day-9hour`" ]
+                then    DAYS=$(((`date +%s`-`stat -c %Y $STATUSRSYNC`)/3600/24))
+			TXT=$TXT"RSYNC CRITICAL - $STATUSRSYNC $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSRSYNC`"; "
+                        grep "^RSYNC OK"  $STATUSRSYNC || CODE=2
+                fi
+        else    TXT=$TXT"RSYNC CRITICAL - $STATUSRSYNC not found; "
+                CODE=2
+	fi
+fi
+
+# S3 check 
+if [ "$DOS3" == 1 ]
+then
+	STATUSFILE=$STATUSS3
+	if [ -f $STATUSFILE ]
+        then    if [ "`stat -c %Y $STATUSFILE`" -lt "`date +%s -d -1day-9hour`" ]
+                then    DAYS=$(((`date +%s`-`stat -c %Y $STATUSFILE`)/3600/24))
+			TXT=$TXT"S3 CRITICAL - $STATUSFILE $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSFILE`"; "
+                        grep -E "^S3 (OK|PENDING)"  $STATUSFILE || CODE=2
+                fi
+        else    TXT=$TXT"S3 CRITICAL - $STATUSFILE not found; "
+                CODE=2
+	fi
+fi
+
+
+# check dump
+
+if [ "$DODUMPFS" == 1 ]
+then
+	STATUSFILE=$STATUSDUMPFS
+	if [ -f $STATUSFILE ]
+        then    if [ "`stat -c %Y $STATUSFILE`" -lt "`date +%s -d -1day-9hour`" ]
+                then    DAYS=$(((`date +%s`-`stat -c %Y $STATUSFILE`)/3600/24))
+			TXT=$TXT"DUMPFS CRITICAL - $STATUSFILE $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSFILE`"; "
+                        grep "^DUMPFS OK"  $STATUSFILE || CODE=2
+                fi
+        else    TXT=$TXT"DUMPFS CRITICAL - $STATUSFILE not found; "
+                CODE=2
+	fi
+fi
+
+
+
+# check rotate  backup
+
+if [ "$DOROTATE" == 1 ]
+then
+	if [ -f $STATUSROTATE ]
+        then    if [ "`stat -c %Y $STATUSROTATE`" -lt "`date +%s -d -1day-9hour`" ]
+                then    DAYS=$(((`date +%s`-`stat -c %Y $STATUSROTATE`)/3600/24))
+			TXT=$TXT"ROTATE CRITICAL - $STATUSROTATE $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSROTATE`"; "
+                        grep "^ROTATE OK"  $STATUSROTATE || CODE=2
+                fi
+        else    TXT=$TXT"ROTATE CRITICAL - $STATUSROTATE not found; "
+                CODE=2
+	fi
+fi
+
+
+
+#check lock
+if [ -f "$LOCKFILE" ]
+then	TXT=$TXT"dxm is running"
+	P=`cat $LOCKFILE`
+	if ps -p $P >/dev/null 
+	then 	TXT=$TXT", process exists; "  
+	else	TXT=$TXT", process $P is absent; "
+		CODE=2
+	fi
+fi
+
+
+
+
+} 1>/dev/null 2>/dev/null
+
+[ -z "$MINIMAL_UPTIME" ] && MINIMAL_UPTIME=6
+if [ $CODE != 0 ] && [ -n $MINIMAL_UPTIME ]
+then    UPTIME=$(( $(cat /proc/uptime| cut -d.  -f1)  / 3600 ))
+        if [ $UPTIME -lt $MINIMAL_UPTIME ]
+        then
+                CODE=0
+                TXT="DXM status is not good ( $TXT ) but uptime is small. Time to configure backup"
+        fi
+fi
+
+if [ "$CODE" == 2 ]
+then	echo "DXM $VERSION CRITICAL : "$TXT
+else 	if [ "$CODE" == 1 ] 
+	then    echo "DXM $VERSION WARNING : "$TXT
+	else	echo "DXM $VERSION OK : "$TXT 
+	fi
+fi
+
+
+exit $CODE

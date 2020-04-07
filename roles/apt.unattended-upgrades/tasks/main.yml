@@ -1,0 +1,72 @@
+---
+# tasks file for apt.local
+
+
+  - name: apt-get update
+    apt:
+      update_cache: yes
+      cache_valid_time: 8000
+
+  - name: install pkgs
+    apt:
+        name:
+            - unattended-upgrades
+        state: present
+        install_recommends: no
+
+  - file: path={{ item }} state=directory
+    when:  ' ansible_service_mgr == "systemd" '
+    with_items:
+        - /etc/systemd/system/apt-daily-upgrade.timer.d
+        - /etc/systemd/system/apt-daily.timer.d
+    name: create timers folders
+
+  - when:  ' ansible_service_mgr == "systemd" '
+    copy: 
+        dest:  '{{ item }}'
+        content: |
+            [Timer]
+    
+            Persistent=false
+    with_items:
+        - /etc/systemd/system/apt-daily-upgrade.timer.d/override.conf
+        - /etc/systemd/system/apt-daily.timer.d/override.conf
+    notify: 
+        - reload systemctl
+    name: copy timers
+
+  - name:   enable apt-daily-upgrade.timer
+    when:  ' ansible_service_mgr == "systemd" '
+    systemd:
+        name:   apt-daily-upgrade.timer
+        state: started
+        enabled: yes
+
+
+  - name:   enable apt-daily.timer
+    when:  ' ansible_service_mgr == "systemd" '
+    systemd:
+        name:   apt-daily.timer
+        state: started
+        enabled: yes
+
+  - name: copy 10periodic
+    copy: 
+        dest: /etc/apt/apt.conf.d/10periodic
+        content: |
+            // conf by Ezbik
+            APT::Periodic::Enable "1";
+            APT::Periodic::Update-Package-Lists "1";
+            APT::Periodic::Unattended-Upgrade "1";
+            APT::Periodic::Verbose "1";
+            APT::Periodic::RandomSleep "0";
+            APT::Periodic::AutocleanInterval "14";
+
+  - file: path=/etc/apt/apt.conf.d/20auto-upgrades state=absent
+
+  - name: check_unattended_upgrades
+    copy:
+        src: check_unattended_upgrades
+        dest: /usr/local/bin/check_unattended_upgrades
+        mode: 0755
+

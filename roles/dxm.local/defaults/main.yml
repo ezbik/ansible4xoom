@@ -1,0 +1,13 @@
+---
+
+
+dxm_ftphost: bk.com
+dxm_ftp_login: "kiki"
+dxm_ftp_password: "QUQU"
+dxm_doftp: 1
+dxm_dorotate: 1
+dxm_ftpdir: 'dxm/{{ ansible_fqdn }}'
+dxm_domysql: 0
+do_postgresql: 0
+dxm_dofiles: 1
+

@@ -1,0 +1,145 @@
+#!/bin/bash
+
+source /etc/dxm/dxm.conf
+source /etc/dxm/func.inc || exit 1
+
+export HOME=/root/
+
+export LIST=/var/tmp/dxm.rotate.lst
+export LISTS3=/var/tmp/dxm.rotate.s3.lst
+
+export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin
+
+if [  "$DOROTATE" = 1 ]
+then    :
+else    echo "enable DOROTATE, exit"  | tee -a $ROTATELOG
+        exit
+fi
+
+if [ -n "$ROTATELOG" ]
+then    :
+else    echo "configure ROTATELOG , exit"  | tee -a $ROTATELOG
+        exit
+fi
+
+[ -z "$ENGINEFILES" ] && ENGINEFILES=tar
+[ $ENGINEFILES == tar ] && FILES='*tgz *lst'
+[ $ENGINEFILES == dar ] && FILES='*dar'
+
+##### start check rotate
+if [ "$DOFTP" == 1 ] && ! lftp $FTPHOST -e "cd $FTPDIR; exit"
+then    echo "ROTATE CRITICAL - cant connect to $FTPHOST or cd to $FTPDIR" | tee $STATUSROTATE | tee -a $ROTATELOG
+exit
+fi
+
+if [ "$DOS3" == 1 ] 
+then 
+        echo "== [s3] test connection"
+        . $S3KEYS
+        
+        s3_test_connection   2>&1 | tee -a $ROTATELOG
+        if [[ ${PIPESTATUS[0]} == 0 ]]
+        then    echo "S3 worked"        | tee -a $ROTATELOG
+        else    echo "ROTATE CRITICAL - cant connect to $S3PATH" | tee $STATUSROTATE | tee -a $ROTATELOG
+                exit
+        fi
+        echo "== [s3] done"
+fi
+#### end check rotate
+
+echo | tee -a $ROTATELOG
+echo | tee -a $ROTATELOG
+echo "=== @@@@@ `date` START rotate script in `pwd`" | tee -a $ROTATELOG
+
+
+
+[ "$DOFTP" == 1 ] && { 
+echo "=== obtaining remote listing :" | tee -a $ROTATELOG
+lftp $FTPHOST -e "cd $FTPDIR && cls $FILES; exit" |sort -g > $LIST
+cat $LIST | tee -a $ROTATELOG
+cp $LIST $LIST.old
+echo "=== done " | tee -a $ROTATELOG
+}  
+
+
+[ "$DOS3" == 1 ] && { 
+echo "=== [s3] obtaining remote listing :" | tee -a $ROTATELOG
+
+s3_list_files > $LISTS3
+cat $LISTS3 | tee -a $ROTATELOG
+cp $LISTS3 $LISTS3.old
+echo "=== [s3] done " | tee -a $ROTATELOG
+}
+
+
+[ "$DOFTP" == 1 ] && { 
+echo "=== start processing SLOTS"  | tee -a $ROTATELOG
+echo -e "$SLOTS"     | sed 's@^\(.*\) \(.*\)$@ grep -E "00.(1.dar|tgz)$" $LIST | awk -F. '\''{if (($1>="\1") \&\&  ($1<="\2")) \
+	print "echo file "$1" satisfies SLOT \1..\2, saving; sed /"$1".00./d -i \$LIST "}'\'' | \
+	sort|tail -n 1@'  | bash|bash | tee -a $ROTATELOG
+echo "=== end processing"  | tee -a $ROTATELOG
+
+
+echo "=== start processing SLOTSINCR"  | tee -a $ROTATELOG
+echo -e "$SLOTSINCR" | sed 's@^\(.*\) \(.*\)$@ grep -E "00.(1.dar|tgz)$" $LIST | awk -F. '\''{if (($1>"\1")  \&\& ($1<="\2")) \
+	print "echo file "$1" satisfies SLOT \1..\2, saving; sed /"$1"..../d -i \$LIST "}'\'' | \
+	sort|tail -n 1@'  | bash|bash | tee -a $ROTATELOG
+echo "=== end processing"  | tee -a $ROTATELOG
+
+
+echo "=== difference between old & new lists are (files that will be saved on remote side are marked with <)" | tee -a $ROTATELOG
+diff $LIST.old $LIST | tee -a $ROTATELOG
+
+echo "=== now lets purge nonrequired files beyond SLOTs" | tee -a $ROTATELOG
+for F in `cat $LIST` 
+do
+echo "== purging $F " | tee -a $ROTATELOG
+lftp $FTPHOST -e "cd $FTPDIR; rm $F; exit"
+done
+
+echo "=== obtaining remote listing :" | tee -a $ROTATELOG
+lftp $FTPHOST -e "cd $FTPDIR && cls $FILES; exit" |sort -g  | tee -a $ROTATELOG
+echo "=== done " | tee -a $ROTATELOG
+
+}
+
+
+[ "$DOS3" == 1 ] && { 
+echo "=== [s3] start processing SLOTS"  | tee -a $ROTATELOG
+echo -e "$SLOTS"     | sed 's@^\(.*\) \(.*\)$@ grep -E "00.(1.dar|tgz)$" $LISTS3 | awk -F. '\''{if (($1>="\1") \&\&  ($1<="\2")) \
+	print "echo file "$1" satisfies SLOT \1..\2, saving; sed /"$1".00./d -i \$LISTS3 "}'\'' | \
+	sort|tail -n 1@'  | bash|bash | tee -a $ROTATELOG
+echo "=== [s3] end processing"  | tee -a $ROTATELOG
+
+
+echo "=== [s3] start processing SLOTSINCR"  | tee -a $ROTATELOG
+echo -e "$SLOTSINCR" | sed 's@^\(.*\) \(.*\)$@ grep -E "00.(1.dar|tgz)$" $LISTS3 | awk -F. '\''{if (($1>"\1")  \&\& ($1<="\2")) \
+	print "echo file "$1" satisfies SLOT \1..\2, saving; sed /"$1"..../d -i \$LISTS3 "}'\'' | \
+	sort|tail -n 1@'  | bash|bash | tee -a $ROTATELOG
+echo "=== [s3] end processing"  | tee -a $ROTATELOG
+
+
+echo "=== [s3] difference between old & new lists are (files that will be saved on remote side are marked with <)" | tee -a $ROTATELOG
+diff $LISTS3.old $LISTS3 | tee -a $ROTATELOG
+
+echo "=== [s3] now lets purge nonrequired files beyond SLOTs" | tee -a $ROTATELOG
+for F in `cat $LISTS3` 
+do
+echo "== [s3] purging $F " | tee -a $ROTATELOG
+s3_rm_file "$S3PATH/$F"
+done
+
+echo "=== [s3] obtaining remote listing :" | tee -a $ROTATELOG
+s3_list_files | tee -a $ROTATELOG
+echo "=== [s3] done " | tee -a $ROTATELOG
+
+}
+
+echo "=== @@@@@ `date` STOP rotate script" | tee -a $ROTATELOG
+
+
+
+echo ROTATE OK > $STATUSROTATE
+
+
+

@@ -1,0 +1,36 @@
+---
+
+######## Firewall start
+
+- name: copy iptables service
+  copy:
+    src: iptables.service
+    dest: /etc/systemd/system/iptables.service
+    mode: "0644"
+  notify:
+    - reload systemctl
+
+- name: create /etc/firewall.sh
+  template:
+    src: firewall.sh.j2
+    dest: /etc/firewall.sh
+    mode: '0755'
+  notify:
+    - restart firewall
+
+- name: create /etc/firewall.sh.local
+  copy:
+        dest: /etc/firewall.sh.local
+        mode: '0755'
+        force: no
+        content: |
+            # put your local Firewall rules here 
+
+- name:   enable iptables service
+  when:  ' ansible_service_mgr == "systemd" '
+  systemd:
+        name:   iptables
+        state: started
+        enabled: yes
+
+######## Firewall end

@@ -1,0 +1,3 @@
+
+- name: nbz4live.nagios-nrpe-server
+  src: https://github.com/NBZ4live/ansible-nagios-nrpe-server.git

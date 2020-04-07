@@ -1,0 +1,20 @@
+
+---
+- hosts: 
+    - vpn1
+    - vpn2
+    - proxy1
+
+  #connection: local
+  become: True
+  gather_facts: yes
+
+  roles:
+    - dxm.local
+  vars:
+#        dxm_ftphost: ftphost
+#        dxm_ftp_login: ftplogin
+#        dxm_ftp_password: ftppasswww
+         dxm_doftp: 0
+         dxm_dorotate: 0
+

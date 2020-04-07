@@ -1,0 +1,6 @@
+---
+# handlers file for apt.local
+
+- name: reload systemctl
+  command: systemctl daemon-reload
+  when:   ansible_service_mgr == "systemd" 

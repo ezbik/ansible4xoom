@@ -1,0 +1,11 @@
+SHELL=/bin/bash
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
+MAILTO=""
+HOME=/root
+
+#DXM backup implemented by Pavel Piatruk
+
+2 2 * * * root perl -e 'sleep rand 1800' && /usr/local/bin/dxm.do_backup
+3 4,6,8,12,16,20 * * * root /usr/local/bin/dxm.fix_ftp
+12 1 * * * root /usr/local/bin/dxm.self_rotate
+0 * * * * root /usr/local/bin/dxm.check_backup | grep "ROTATE CRITICAL" && perl -e "sleep rand 900" && /usr/local/bin/dxm.self_rotate  

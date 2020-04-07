@@ -1,0 +1,45 @@
+
+#################### make sure Python is installed
+
+- hosts:
+    - all
+  become: True
+  gather_facts: no
+  pre_tasks:
+    - name: Install Python
+      include: install.python.yml
+
+#################### NoLogs:
+
+- hosts: 
+    - all
+  
+  become: True
+  gather_facts: yes
+
+  roles:
+    - xoom.nologs
+
+#################### Firewall:
+
+- hosts: vpnservers:masters:proxies:cdns:docker1:w1
+  become: True
+  gather_facts: yes
+  roles:
+    - xoom.firewall
+  vars:
+    vpn1: 45.142.214.244 
+    vpn2: 45.153.231.197
+
+##################### NRPE agent for monitoring:
+
+- hosts: vpnservers:masters:proxies:cdns:docker1:w1
+- name: Include a play
+  include: nbz4live.nagios-nrpe-server.yml
+
+#################### Ubuntu auto upgrades
+
+- hosts: vpnservers:masters:proxies:cdns:docker1:w1
+- name: Include a play
+  include: apt.unattended-upgrades.yml
+

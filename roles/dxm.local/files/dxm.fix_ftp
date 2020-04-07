@@ -1,0 +1,68 @@
+#!/bin/bash
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root
+
+#pgrep -f -l  dxm.fix && exit
+pgrep -f -l  lftp    && exit
+
+. /etc/dxm/dxm.conf || exit 1
+test -f $LOCKFILE && { echo "DXM is running, $LOCKFILE exists; exit "; exit 2; }
+LFTP_CONF="debug ;"
+
+if echo $@ | grep -q -e '--force'
+then    FORCE=1
+fi
+
+# check ftp  backup status; fix unless status is OK
+CODE=0
+if [ "$DOFTP" == 1 ]
+then
+        if [ -f $STATUSFTP ]
+        then    if [ "`stat -c %Y $STATUSFTP`" -lt "`date +%s -d -1day-9hour`" ]
+                then    DAYS=$(((`date +%s`-`stat -c %Y $STATUSFTP`)/3600/24))
+                        TXT=$TXT"FTP CRITICAL - $STATUSFTP $DAYS days old; "
+                        [ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSFTP`"; "
+                        grep -q "^FTP OK"  $STATUSFTP || CODE=2
+                fi
+        else    TXT=$TXT"FTP CRITICAL - $STATUSFTP not found; "
+                CODE=2
+        fi
+else    echo "DOFTP=0 ; exit"
+        exit 2
+fi
+
+echo "$TXT"
+
+if [ "$CODE" == 0 ] && [ "$FORCE" != 1 ]
+then    exit
+fi
+
+
+# by default ENGINEFILES == tar
+[ -z "$ENGINEFILES" ] && ENGINEFILES=tar
+[ $ENGINEFILES == tar ] && FILES="*tgz *lst"
+[ $ENGINEFILES == dar ] && FILES="*dar"
+
+if [ $DOFTP == 1 ] 
+
+then    if ! lftp $FTPHOST -e "$LFTP_CONF cd $FTPDIR; exit"
+        then    echo "cant connect to $FTPHOST or cd to $FTPDIR"
+                exit 1
+        fi
+
+
+        echo ==uploading 
+        #lftp $FTPHOST -e "$LFTP_CONF cd $FTPDIR && lcd $DESTDIR && mput -c $FILES ; exit" && \
+        lftp $FTPHOST -e "$LFTP_CONF cd $FTPDIR && lcd $DESTDIR && mirror -c -R -v -I *tgz -I *lst  ; exit" && \
+	        echo FTP OK > /var/log/dxm.backup.ftp.status
+
+        if [ $DOROTATE == 1 ]
+        then
+                dxm.check_backup | grep "ROTATE CRITICAL" && dxm.self_rotate
+        fi
+        :  # required to return 0 exit status
+fi
+
+

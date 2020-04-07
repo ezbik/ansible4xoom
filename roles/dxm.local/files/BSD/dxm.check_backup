@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+
+# DXM 1.3.5
+# Pavel Piatruk, 2010
+# http://www.nksupport.com
+
+
+TXT="";
+CODE=0
+VERSION=1.3.5
+if test -r /etc/dxm/dxm.conf && source /etc/dxm/dxm.conf 
+then 	:
+else	TXT="unable to read conf file"
+	CODE=2
+fi
+
+# NOW - 1day -9hour
+OLDTIME=$(( $(date +%s) - $((24*3600)) - $((9*3600)) ))
+
+
+function get_unix_ctime {
+	stat -f "%c" $1
+}
+
+function get_days_ctime {
+	echo $(((`get_unix_ctime $1`)/3600/24 ))
+}
+
+{
+
+# check files backup
+if [ "$DOFILES" == 1 ]
+then 	if [ -f $STATUS ]
+	then    if [ `get_unix_ctime $STATUS` -lt "$OLDTIME" ] 
+		then	DAYS=$( get_days_ctime $STATUS )
+			TXT=$TXT"TAR CRITICAL - $STATUS $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+			echo "after files $CODE"
+			
+		else 	TXT=$TXT`head -n1 $STATUS`"; "
+			grep "^TAR OK" $STATUS || CODE=2
+		fi
+	else    TXT=$TXT"TAR CRITICAL - ${STATUS} not found; "
+		CODE=2
+	fi
+fi
+
+# check mysqldump  backup
+if [ "$DOMYSQL" == 1 ]
+then
+	if [ -f $STATUSMYSQL ]
+	then    if [ "`stat -c %Y $STATUSMYSQL`" -lt "$OLDTIME" ]
+		then	DAYS=$( get_days_ctime $STATUSMYSQL )
+			TXT=$TXT"MYSQL CRITICAL - $STATUSMYSQL $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+		else 	if echo $DUMPDIR | grep -qf $EXCLUDE
+			then	TXT=$TXT"MYSQL CRITICAL - DUMPDIR $DUMPDIR is in EXCLUDELIST $EXCLUDE; "
+				CODE=2
+			else 	TXT=$TXT`head -n1 $STATUSMYSQL`"; "
+				grep "^MYSQL OK"  $STATUSMYSQL || CODE=2
+			fi
+		fi
+	else    TXT=$TXT"MYSQL CRITICAL - $STATUSMYSQL not found; "
+		CODE=2
+	fi
+fi
+
+
+# check posgtresql  backup
+if [ "$DOPOSTGRESQL" == 1 ]
+then
+	if [ -f $STATUSPOSTGRESQL ]
+	then    if [ `get_unix_ctime $STATUSPOSTGRESQL` -lt "$OLDTIME" ]
+		then	DAYS=$( get_days_ctime $STATUSPOSTGRESQL )
+			TXT=$TXT"POSTGRESQL CRITICAL - $STATUSPOSTGRESQL $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+		else 	if echo $DUMPDIR | grep -qf $EXCLUDE
+			then	TXT=$TXT"POSTGRESQL CRITICAL - DUMPDIR $DUMPDIR is in EXCLUDELIST $EXCLUDE; "
+				CODE=2
+			else 	TXT=$TXT`head -n1 $STATUSPOSTGRESQL`"; "
+				grep "^POSTGRESQL OK"  $STATUSPOSTGRESQL || CODE=2
+			fi
+		fi
+	else    TXT=$TXT"POSTGRESQL CRITICAL - $STATUSPOSTGRESQL not found; "
+		CODE=2
+	fi
+fi
+
+
+# check ftp  backup
+if [ "$DOFTP" == 1 ]
+then
+	if [ -f $STATUSFTP ]
+        then    if [ `get_unix_ctime $STATUSFTP` -lt "$OLDTIME" ]
+                then    DAYS=$( get_days_ctime $STATUSFTP )
+			TXT=$TXT"FTP CRITICAL - $STATUSFTP $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSFTP`"; "
+                        grep "^FTP OK"  $STATUSFTP || CODE=2
+                fi
+        else    TXT=$TXT"FTP CRITICAL - $STATUSFTP not found; "
+                CODE=2
+	fi
+fi
+
+#rsync check
+
+if [ "$DORSYNC" == 1 ]
+then
+	if [ -f $STATUSRSYNC ]
+        then    if [ `get_unix_ctime $STATUSRSYNC` -lt "$OLDTIME" ]
+                then    DAYS=$( get_days_ctime $STATUSRSYNC )
+			TXT=$TXT"RSYNC CRITICAL - $STATUSRSYNC $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSRSYNC`"; "
+                        grep "^RSYNC OK"  $STATUSRSYNC || CODE=2
+                fi
+        else    TXT=$TXT"RSYNC CRITICAL - $STATUSRSYNC not found; "
+                CODE=2
+	fi
+fi
+
+# S3 check 
+if [ "$DOS3" == 1 ]
+then
+	STATUSFILE=$STATUSS3
+	if [ -f $STATUSFILE ]
+        then    if [ `get_unix_ctime $STATUSFILE` -lt "$OLDTIME" ]
+                then    DAYS=$( get_days_ctime $STATUSFILE )
+			TXT=$TXT"S3 CRITICAL - $STATUSFILE $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSFILE`"; "
+                        grep "^S3 OK"  $STATUSFILE || CODE=2
+                fi
+        else    TXT=$TXT"S3 CRITICAL - $STATUSFILE not found; "
+                CODE=2
+	fi
+fi
+
+
+
+# check rotate  backup
+
+if [ "$DOROTATE" == 1 ]
+then
+	if [ -f $STATUSROTATE ]
+        then    if [ `get_unix_ctime $STATUSROTATE` -lt "$OLDTIME" ]
+                then    DAYS=$( get_days_ctime $STATUSROTATE )
+			TXT=$TXT"ROTATE CRITICAL - $STATUSROTATE $DAYS days old; "
+			[ "$CODE" != "2" ] && { [ "$DAYS" -lt 4 ] && CODE=1 || CODE=2 ; }
+                else    TXT=$TXT`head -n1 $STATUSROTATE`"; "
+                        grep "^ROTATE OK"  $STATUSROTATE || CODE=2
+                fi
+        else    TXT=$TXT"ROTATE CRITICAL - $STATUSROTATE not found; "
+                CODE=2
+	fi
+fi
+
+
+
+#check lock
+if [ -f "$LOCKFILE" ]
+then	TXT=$TXT"dxm is running"
+	P=`cat $LOCKFILE`
+	if ps -p $P >/dev/null 
+	then 	TXT=$TXT", process exists; "  
+	else	TXT=$TXT", process $P is absent; "
+		CODE=2
+	fi
+fi
+
+
+
+
+} 1>/dev/null 2>/dev/null
+
+if [ "$CODE" == 2 ]
+then	echo "DXM $VERSION CRITICAL : "$TXT
+else 	if [ "$CODE" == 1 ] 
+	then    echo "DXM $VERSION WARNING : "$TXT
+	else	echo "DXM $VERSION OK : "$TXT 
+	fi
+fi
+
+
+exit $CODE

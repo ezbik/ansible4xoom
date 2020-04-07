@@ -1,0 +1,17 @@
+
+set thresholds of WARN/CRIT in dxm.conf
+
+different DOGPG for tgz & dumpfs
+list of dumped filesystems instead of single FS
+
+dxm.check_backup should be rewritten to contain functions
+
+# timings for gpg; dumpfs
+# purging old TAR/DUMPFS files only after success
+
+
+Ignore lock after a week.
+fix:LFTP returns 0 if dns resolution failed
+
+prediction mode to prevent disk full
+

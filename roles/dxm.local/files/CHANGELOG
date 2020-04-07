@@ -1,0 +1,47 @@
+
+1.3.4
+
+* GPG encryption
+* postgresql dumps
+* new smarter common rotation script
+* remote rotation from client side (selfrotate script)
+* fixed permissions of storage folders
+* fixed eternal waiting if FTP is not available
+* fixed creation of non necessary folders
+* removed rsync & FTP checks which abort script execution
+* 1day+5hour -->  1day+9hour (maximum life of OK status) 
+* Tue Feb 15 15:09:56 EET 2011
+	600 mode for mysql/postgres dumps
+	self rotation via lftp
+
+1.3.5
+
+* Sun May  1 17:12:49 EEST 2011
+	mysql table inclusion/exclusion
+
+* Sat May 14 14:58:39 EEST 2011
+	more verbose output about PID & process
+
+* Wed Feb 15 12:17:59 FET 2012
+	list of rpm, deb packages.
+	list of all files (permissions, owner:group, file type, file name)
+
+1.3.6
+	* Upload to S3
+
+1.3.7
+	* Dump filesystems
+	* Prerun/Postrun
+	* GPG for dumpfs
+        * DAR support
+        * ability to run 1.3.7 with older config files
+        * Mysql check before mysqldump
+        * Purge Mysql old dumps
+        * FTP PENDING status update; fix Mysql status when mysql DB are dumped ; Don't check Rotate when FTP is disabled
+
+1.3.9
+        * Upload to S3 much improved, ready for production
+        * fix_ftp, fix_s3 added, self_rotate improved
+        * Mysql improved [TBLs with spaces, dots]
+        * TAR PENDING , implement in dxm.do_backup & dxm.check_backup //2015-05-29
+        * fix S3 logging // 2015-06-22

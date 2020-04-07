@@ -1,0 +1,74 @@
+
+---
+- hosts: 
+    - all
+#    - swimschool.abingdon.io
+#    - nagios.abingdon.io
+#    - host.abingdon.io
+#    - staff.abingdon.io
+#    - xronos.abingdon.io
+
+  become: False
+  gather_facts: yes
+
+  pre_tasks:
+    
+    - name: install pkgs
+      apt:
+            name:
+                - sudo
+            state: present
+            install_recommends: no
+
+  roles:
+    - nbz4live.nagios-nrpe-server
+
+  vars:
+    nagios_nrpe_server_apt_packages:
+          - nagios-nrpe-server
+          - nagios-plugins
+          - nagios-plugins-basic
+    nagios_nrpe_server_sudo_commands:
+          - /usr/local/bin/check_unattended_upgrades 
+          - /usr/local/bin/check_md_raid
+          - /usr/local/bin/check_maldet
+          - /usr/local/bin/check_smart_all
+    nagios_nrpe_server_config:
+        allowed_hosts: '127.0.0.1,45.142.214.244'
+
+    nagios_nrpe_server_commands:
+        - { name: check_load,   plugin: check_load,     args: '-w 15,12,10 -c 30,25,20' }
+        - { name: check_disk,   plugin: check_disk,     args:  -W 20% -K 10% -w 20% -c 10% -p / }
+        - { name: check_smtp,   plugin: check_smtp,     args:  -H localhost }
+        - { name: check_mysql, plugin: check_mysql,     args:  -u nagios }
+        - { name: check_mailq, plugin: check_mailq,     args:  -w 500 -c 5000 -v 10 -M exim, sudo: yes }
+        - { name: check_mem, plugin: check_mem.pl,      args:     -C -u -w 80 -c 90 }
+        - { name: check_cpu, plugin: check_cpu.sh,      args:   -w 80 -c 95 }
+        #- { name: check_cpu,    plugin: check_linux_procstat.pl,    args:   -w 60 -c 95 }
+        - { name: check_time,  plugin: check_ntp_time,      args: -H  pool.ntp.org -w 2 -c 5 }
+        - { name: check_unattended_upgrades, 
+                line: /usr/local/bin/check_unattended_upgrades -u 1 -e 1 -S -d 1 -t, sudo: yes}
+        - { name: check_maldet, line: /usr/local/bin/check_maldet, sudo: yes}
+        - { name: check_md_raid, line: /usr/local/bin/check_md_raid, sudo: yes}
+        - { name: check_backup, line: /usr/local/bin/dxm.check_backup}
+        - { name: check_smart_all, line: /usr/local/bin/check_smart_all, sudo: yes }
+        - { name: check_eth, line: "/usr/local/bin/check_eth -i {{ ansible_default_ipv4.alias }}  -w 500m -c 800 m" }
+
+
+
+  post_tasks:
+    - copy: src=nagios-plugins/check_cpu.sh dest=/usr/lib/nagios/plugins/check_cpu.sh mode=755
+    - copy: src=nagios-plugins/check_mem.pl dest=/usr/lib/nagios/plugins/check_mem.pl mode=755
+    - copy: src=nagios-plugins/check_maldet dest=/usr/local/bin/check_maldet mode=755
+    - copy: src=nagios-plugins/check_md_raid dest=/usr/local/bin/check_md_raid mode=755
+    - copy: src=nagios-plugins/check_eth     dest=/usr/local/bin/check_eth mode=755
+    - copy: src=nagios-plugins/check_mount.pl dest=/usr/local/bin/check_mount.pl mode=755
+    - copy: src=nagios-plugins/check_smartmon2.py  dest=/usr/local/bin/check_smartmon2.py mode=755
+    - copy: src=nagios-plugins/check_smart_all dest=/usr/local/bin/check_smart_all mode=755
+
+    - name: create /etc/nagios/nrpe.d/99_local.cfg
+      copy:
+        force: no
+        dest: /etc/nagios/nrpe.d/99_local.cfg
+        content: |
+            # put your local edits here

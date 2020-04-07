@@ -1,0 +1,92 @@
+---
+
+########## ftp start
+
+- name: set FTP password
+  lineinfile:
+    create: yes
+    path: /root/.netrc
+    regexp: "machine {{ dxm_ftphost }} "
+    line: 'machine {{ dxm_ftphost }} login {{ dxm_ftp_login }} password {{ dxm_ftp_password }}'
+  when: dxm_doftp == 1
+
+- name: set mode for netrc
+  file: 
+    path: /root/.netrc
+    state: file
+    mode: '0600'
+  when:   dxm_doftp == 1 
+
+- name: install pkgs
+  apt:
+   name:
+    - lftp
+   state: present
+   install_recommends: no
+  when: dxm_doftp == 1
+
+- name: conf lftp
+  lineinfile:
+    create: yes
+    path: /root/.lftprc
+    regexp: "ssl:verify-certificate"
+    line: 'set ssl:verify-certificate no'
+  when: dxm_doftp == 1
+
+- name: create dxm folder on FTP
+  shell: "lftp {{ dxm_ftphost }} -e ' mkdir -fp /{{ dxm_ftpdir }} ; exit ; ' ; true ;"
+  when: dxm_doftp == 1
+
+########## ftp end
+
+- name: Create /etc/dxm
+  file:
+    path: /etc/dxm
+    state: directory
+    mode: '0755'
+
+- name: copy DXM scripts
+  copy:
+    src: '{{ item }}'
+    dest: '/usr/local/bin/{{ item }}'
+    mode: "0755"
+  with_items:
+    - dxm.check_backup
+    - dxm.do_backup
+    - dxm.fix_ftp
+    - dxm.fix_s3
+    - dxm.get_ftp_usage
+    - dxm.get_s3_usage
+    - dxm.self_rotate
+
+- name: copy DXM system things
+  copy:
+    src: '{{ item }}'
+    dest: '/{{ item }}'
+    mode: "0644"
+  with_items:
+    - etc/cron.d/dxm
+    - etc/logrotate.d/dxm.backup
+
+
+- name: copy DXM conf 
+  copy:
+    src: '{{ item }}'
+    dest: '/etc/{{ item }}'
+    mode: "0644"
+  with_items:
+    - dxm/func.inc
+    - dxm/dar
+    - dxm/tar
+    - dxm/excludes
+    - dxm/prerun.sh
+    - dxm/postrun.sh
+    - dxm/rsync
+
+
+- name: template dxm.conf
+  template:
+        src: dxm.conf.j2
+        dest: /etc/dxm/dxm.conf
+        mode: '0644'
+

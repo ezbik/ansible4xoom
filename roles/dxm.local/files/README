@@ -1,0 +1,15 @@
+DXM is backup script. Features:
+* postrun/prerun scripts
+* full backups are performed weekly, daily backups are incremental
+* ability to run full backup at specified day only (e.g. Saturday night)
+* ability to dump FS using UNIX dump tool. 
+* upload to amazon S3, FTP or Samba shares
+* rotation policies:
+** local storage (e.g. keep 2 week full backups & their increments) 
+** remote storage (e.g. same as local storage + 2 month full backups)  
+* output files are usual UNIX tar.gz files
+* status can be easily attached to monitoring systems (e.g. Nagios)
+* dumping Mysql & Postgresql databases with ability to exclude/include databases/tables by regexp
+* encrypting backups with GPG keys
+* file backups are done with Tar or Dar
+

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+source /etc/dxm/dxm.conf
+source /etc/dxm/func.inc || exit 1
+
+export HOME=/root/
+
+export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin
+
+if [ "$DOS3" == 1 ] 
+then 
+
+        . $S3KEYS
+        
+        s3_test_connection
+        if [[ ${PIPESTATUS[0]} == 0 ]]
+        then    echo "S3 worked"        | tee -a $ROTATELOG
+        else    echo "S3 CRITICAL - cant connect to $S3PATH"
+                exit
+        fi
+else
+    echo "DOS3 disabled "
+    exit
+fi
+
+
+s3_list_files_raw
+
+echo
+echo "total size of tgz and tgz.lst:"
+echo TOTAL=$(s3_list_files_raw  | grep -P '\D\d{8}\.\d\d\.tgz(\.lst)?'   | awk '{S+=$3}END{printf("%.fGB\n", S/1024/1024/1024)}')
+
+
+
+

@@ -1,0 +1,89 @@
+
+********** unpack files
+
+for f in *tgz ; do echo =$f; tar xf $f; done
+
+********** Mysql databases
+
+cd var/dxm.mysqldump/
+for DB in $(  /bin/ls *sql.gz | grep -Ev "(^phpmyadmin|mysql)".sql| sed 's@.sql.gz@@' )
+do echo =$DB
+mysqladmin create $DB
+pv $DB.sql.gz | gunzip -dc  | mysql $DB
+done
+
+
+gunzip -dc mysql.sql.gz | mysql  mysql
+
+cd ../..
+
+rsync -a etc/mysql/debian.cnf /etc/mysql/debian.cnf
+rsync -a etc/mysql/conf.d/local.cnf /etc/mysql/conf.d/local.cnf
+cp root/.my.cnf ~/
+
+#MYSQL_PW_OLD=$( cat ~/.my.cnf | grep -oP '(?<=password=)\S+' )
+#
+#mysql    --defaults-file=/etc/mysql/debian.cnf mysql -e " ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '""$MYSQL_PW_OLD""'; flush privileges; "
+#mysqlshow
+
+/etc/init.d/mysql restart 
+mysqlshow  --defaults-file=/etc/mysql/debian.cnf 
+mysqlshow 
+
+********** Linux users
+
+
+cat etc/passwd |grep /var/www/vhosts | tee ~/passwd
+
+for U in $(cat ~/passwd | cut -d: -f1)
+do grep "^$U:" etc/shadow
+done | tee ~/shadow
+
+> ~/group
+for U in $(cat ~/passwd | cut -d: -f1)
+do grep "^$U:" etc/group | tee -a  ~/group || echo "_ERR can find $U"
+done
+
+ wc -l ~/shadow  ~/passwd  ~/group
+
+# cat ~/shadow >> /etc/shadow
+# cat ~/passwd >> /etc/passwd
+# cat ~/group >> /etc/group
+
+
+********** diff things
+
+ls -la etc/cron.d/local var/spool/cron/crontabs/ etc/crontab
+
+find etc/php*/fpm/*pool*
+find etc/php* -type f |grep local.ini
+
+********** vhosts
+
+# nginx 
+rsync -av etc/nginx/ /etc/nginx/ ; nginx -t
+nginx -t
+service nginx restart
+# apache
+rsync -av etc/apache2/sites-* /etc/apache2/ --delete
+apachectl -t
+service apache2 restart
+
+********** letsencrypt
+
+ rsync -av var/lib/letsencrypt/ /var/lib/letsencrypt/
+
+********** Files
+
+rm -rf /var/www/
+mv var/www /var/www
+ls -la /var/www/vhosts
+
+
+******** nginx-auto-ssl
+
+systemctl stop nginx-auto-ssl
+rsync -av etc/resty-auto-ssl/ /etc/resty-auto-ssl/ --delete 
+systemctl start nginx-auto-ssl
+
+

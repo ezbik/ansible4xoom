@@ -1,0 +1,25 @@
+[vpnservers]
+vpn1        ansible_host=45.142.214.244
+vpn2        ansible_host=45.153.231.197
+
+[masters]
+
+master1     ansible_host=91.218.215.10
+master2     ansible_host=91.218.215.14
+
+[proxies]
+
+proxy2      ansible_host=51.161.11.10   domains="xoomtv.net prod.engine.xoomtv.net prod.dashboard.xoomtv.net" backend_ip=104.248.110.212
+proxy1      ansible_host=51.161.11.11   domains="test.xoomtv.net" backend_ip="198.245.60.161:4000"
+
+[cdns]
+
+cdntest     ansible_host=192.99.62.208 domains=Unknown backend_ip=Unknown
+cdn1        ansible_host=149.56.20.233 domains=cdn1.xoomtv.net backend_ip="127.0.0.1:4000"
+
+[misc]
+
+docker1     ansible_host=51.79.66.151
+w1          ansible_host=51.79.70.84
+kub_m       ansible_host=206.81.10.61
+kub_w       ansible_host=206.189.226.7

@@ -1,0 +1,32 @@
+
+
+which svn  && svn co https://pathos.tanatos.org/svn/src/dxm/dxm-dev/ /opt/dxm/ && \
+{
+cd /opt/dxm/
+
+rsync -avz --no-owner --no-group --no-perms -c -O ./dxm.* /usr/local/bin/
+rsync -u -avz ./dxm /etc/  --exclude .svn --backup --suffix=.$(date +%Y%m%d.%H%M%S)
+cp etc/cron.d/dxm /etc/cron.d/dxm
+cp etc/logrotate.d/dxm.backup /etc/logrotate.d/dxm.backup
+}
+
+chown -R root:root /etc/dxm /usr/local/bin/dxm*
+chmod -R +r+X /etc/dxm
+
+##################################
+
+### S3 part ; 
+
+apt-get install awscli
+
+cat >  ~/.s3 << EOF
+export AWS_ACCESS_KEY_ID=zzzzzzzzzzzzzzzzzzzz
+export AWS_SECRET_ACCESS_KEY=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+
+export AWS_ACCESS_KEY=$AWS_ACCESS_KEY_ID
+export AWS_SECRET_KEY=$AWS_SECRET_ACCESS_KEY
+export EC2_URL=https://ec2.us-east-1.amazonaws.com
+export AWS_DEFAULT_REGION=us-east-1
+EOF
+
+chmod 600 ~/.s3

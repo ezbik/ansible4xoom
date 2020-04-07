@@ -1,0 +1,20 @@
+#!/bin/bash
+
+
+cd /usr/local/maldetect/sess || { echo "MALDET UNKNOWN, cant chdir to session folder"; exit 2; };
+
+SESSION_LAST=$( cat session.last )
+OUT=$( cat session.$SESSION_LAST | grep "^TOTAL HITS"| grep -Pv "TOTAL HITS:\s+0" )
+
+if [ -z "$SESSION_LAST" ]
+then    echo "MALDET UNKNOWN, undef session"
+        exit 2
+elif [ -z "$OUT" ]
+then    echo "MALDET OK [ maldet --report $SESSION_LAST ]"
+        exit 0 
+else    echo "MALDET FAIL [ maldet --report $SESSION_LAST ] $OUT"
+        exit 1
+fi
+
+#OUT=$( grep -P 'malware hits \d+' -o /usr/local/maldetect/logs/event_log   |tail -n1 | grep -v "malware hits 0" )
+
