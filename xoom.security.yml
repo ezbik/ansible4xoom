@@ -22,7 +22,7 @@
 
 #################### Firewall:
 
-- hosts: vpnservers:masters:proxies:cdns:docker1:w1
+- hosts: masters:proxies:cdns:docker1:w1
   become: True
   gather_facts: yes
   roles:
