@@ -17,9 +17,9 @@ Add an IP to firewall:
     - do [1]
 
 Add Nginx+SSL
-    - define a new host like this in `hosts` file. You can use either ssltype=fake or ssltype=letsencrypt. If fake, then self-signed SSL is issued:
+    - define a new host like this in `hosts` file. You can use either ssltype=fake or ssltype=letsencrypt. If fake, then self-signed SSL is issued. `domains_list` is an array.
 
-        hostAAA111     ansible_host=x.x.x.x.x ssltype=fake         backend=http://127.0.0.1:4000  domains_list='["cdntest.xoomtv.net"]'
+        hostAAA111     ansible_host=x.x.x.x.x ssltype=fake         backend=http://127.0.0.1:4000  domains_list='["cdntest.xoomtv.net", "dom.com"]'
         hostBBB222     ansible_host=x.x.x.x.x ssltype=letsencrypt  backend="http://127.0.0.1:4000" domains_list='["cdn1.xoomtv.net"]'
 
 
