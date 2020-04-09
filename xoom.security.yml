@@ -46,3 +46,13 @@
 - name: Include a play
   include: apt.unattended-upgrades.yml
 
+#################### Nginx + Letsencrypt
+
+- hosts:
+    - cdns
+    - proxies
+  become: True
+  gather_facts: yes
+  roles:
+    - xoom.nginx-le
+
