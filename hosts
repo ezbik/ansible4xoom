@@ -16,6 +16,7 @@ proxy1      ansible_host=51.161.11.11 ssltype=letsencrypt   domains_list='["test
 
 cdntest     ansible_host=192.99.62.208 ssltype=fake         backend=http://127.0.0.1:4000  domains_list='["cdntest.xoomtv.net"]' 
 cdn1        ansible_host=149.56.20.233 ssltype=letsencrypt  backend="http://127.0.0.1:4000" domains_list='["cdn1.xoomtv.net"]'
+cdn2        ansible_host=158.69.224.87 ssltype=letsencrypt  backend="http://127.0.0.1:4000" domains_list='["cdn2.xoomtv.net"]'
 
 [misc]
 
