@@ -34,6 +34,8 @@
     dest: /etc/cron.hourly/purge_btmp
     mode: '0755'
     content: |
+        #!/bin/bash
+
         for F in /var/log/btmp /var/log/utmp 
         do
         rm $F -f && ln -s /dev/null $F
