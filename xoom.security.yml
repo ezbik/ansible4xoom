@@ -56,3 +56,7 @@
   roles:
     - xoom.nginx-le
 
+#################### Telegraf agent
+
+- name: Install Telegraf
+  import_playbook: telegraf.yml

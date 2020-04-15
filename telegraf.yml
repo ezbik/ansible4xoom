@@ -37,6 +37,8 @@
       - plugin: io
       - plugin: mem
       - plugin: net
+        config:
+          - 'interfaces = ["eth*", "en*"]'
       - plugin: netstat
       - plugin: processes
       - plugin: swap
