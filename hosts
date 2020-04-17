@@ -11,6 +11,7 @@ master2     ansible_host=91.218.215.14
 
 proxy2      ansible_host=51.161.11.10 ssltype=letsencrypt   domains_list='["xoomtv.net", "prod.engine.xoomtv.net", "prod.dashboard.xoomtv.net" ]' backend=http://104.248.110.212
 proxy1      ansible_host=51.161.11.11 ssltype=letsencrypt   domains_list='["test.xoomtv.net"]' backend="http://198.245.60.161:4000"
+proxymark1  ansible_host=158.69.62.153 ssltype=letsencrypt   domains_list='["tvxoom.live"]' backend=http://104.248.110.212
 
 [cdns]
 
