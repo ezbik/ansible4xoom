@@ -1,0 +1,10 @@
+---
+# handlers file for xoom.nginx-le
+
+- name: restart nginx
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: nginx
+
+

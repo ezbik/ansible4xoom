@@ -46,15 +46,24 @@
 - name: Include a play
   include: apt.unattended-upgrades.yml
 
-#################### Nginx + Letsencrypt
+#################### Nginx + Letsencrypt ( Proxies )
 
 - hosts:
-    - cdns
     - proxies
   become: True
   gather_facts: yes
   roles:
     - xoom.nginx-le
+
+#################### Nginx ( CDNS )
+
+- name: Nginx CDNS
+  import_playbook: __xoom.nginx-le.cdn.yml 
+
+#################### Nginx ( Edge )
+
+- name: Nginx Edge
+  import_playbook: __xoom.nginx-le.edge.yml 
 
 #################### Telegraf agent
 

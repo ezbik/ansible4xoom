@@ -1,0 +1,15 @@
+
+---
+- hosts: 
+    - edge
+
+  become: False
+  gather_facts: yes
+
+  pre_tasks:
+
+  roles:
+    - xoom.nginx-le.edge
+
+  vars:
+

@@ -1,0 +1,141 @@
+---
+# tasks file for xoom.nginx-le
+
+  - name: set domains fact
+    set_fact:
+      domains: "{{ domains_list | join(' ') }}"
+
+  - name: set domains_certbot fact
+    set_fact:
+      domains_certbot: "{{ domains_list |  map('regex_replace', '^', '-d ') | join(' ') }}"
+    with_items: '{{ domains_list }}'
+
+  - name: set domains_1st fact
+    set_fact:
+        domains_1st: '{{ domains_list[0] }}'
+
+  - debug: var=domains
+  - debug: var=domains_certbot
+  - debug: var=domains_1st
+
+  - name: apt-get update
+    apt:
+      update_cache: yes
+      cache_valid_time: 8000
+
+  - name: install pkgs
+    apt:
+        name:
+            - nginx
+            - certbot
+            - ssl-cert
+            - curl
+        state: present
+        install_recommends: no
+
+###### mount ramdisk start
+
+#  - name: ramdisk, fstab entry
+#    lineinfile: 
+#        path: /etc/fstab
+#        regexp: '/var/lib/nginx/zone1'
+#        line:   'tmpfs /var/lib/nginx/zone1 tmpfs rw,relatime 0 0'
+
+  - name: create /var/lib/nginx/zone1 for ramdisk
+    file: name=/var/lib/nginx/zone1 state=directory
+
+  - name: mount ramdisk
+    mount:
+        path: /var/lib/nginx/zone1
+        src: tmpfs
+        fstype: tmpfs
+        opts: rw,relatime
+        state: mounted
+    notify: restart nginx
+
+###### mount ramdisk end
+  - name: create letsencrypt directory for ACME stuff
+    file: name=/var/www/letsencrypt state=directory
+
+  - name: create folder for validation ACME challenges 
+    file: name=/var/www/letsencrypt/.well-known/acme-challenge/ state=directory
+
+  - name: create test file for validation ACME challenges
+    copy:
+        dest: /var/www/letsencrypt/.well-known/acme-challenge/ACME_TEST
+        content: '{{ ansible_fqdn }}'
+
+  - name: Remove default nginx config
+    file: name=/etc/nginx/sites-enabled/default state=absent
+
+  - name: Put /etc/nginx/conf.d/local.conf
+    copy:
+        dest: /etc/nginx/conf.d/local.conf
+        src: local.conf
+    notify: restart nginx
+
+  - name: Put /etc/nginx/cors-settings.conf
+    copy:
+        dest: /etc/nginx/cors-settings.conf
+        src: cors-settings.conf
+    notify: restart nginx
+
+#  - name: Install system nginx config
+#    template:
+#      src: templates/nginx.conf.j2
+#      dest: /etc/nginx/nginx.conf
+
+  - name: Install nginx site for ACME requests
+    template:
+      src: templates/nginx-http.j2
+      dest: /etc/nginx/sites-enabled/http
+    
+  - name: restart nginx
+    systemd:
+      state: restarted
+      name: nginx
+
+  - name: check if ACME will work
+    shell: 'curl {{ item }}/.well-known/acme-challenge/ACME_TEST -Ss -L | grep {{ ansible_fqdn }}'
+    with_items: '{{ domains_list }}'
+    when: ssltype == "letsencrypt"
+
+  - name: letsencrypt agree TOS
+    shell: certbot register   --register-unsafely-without-email  --agree-tos
+    args:
+      creates: /etc/letsencrypt/accounts
+
+  - name: Create letsencrypt certificate
+    shell: certbot certonly -n --webroot -w /var/www/letsencrypt {{ domains_certbot }}
+    args:
+      creates: /etc/letsencrypt/live/{{ domains_1st }}
+    when: ssltype == "letsencrypt"
+
+  - name: Generate dhparams
+    shell: openssl dhparam -out /etc/nginx/dhparams.pem 2048
+    args:
+      creates: /etc/nginx/dhparams.pem
+
+  - name: Install nginx HTTPS site
+    template:
+      src: templates/nginx-le.j2
+      dest: /etc/nginx/sites-enabled/vhost
+    notify: restart nginx
+
+  - name: Add letsencrypt cronjob for cert renewal
+    cron:
+      name: letsencrypt_renewal
+      special_time: weekly
+      job: certbot certonly -n --webroot -w /var/www/letsencrypt {{ domains_certbot }} && service nginx reload
+    when: ssltype == "letsencrypt"
+
+#  - name: put nginx vhost
+#    template:
+#        src: vhost.j2
+#        dest: /etc/nginx/sites-enabled/vhost
+#        mode: '0644'
+#    notify: restart nginx
+#
+
+
+
