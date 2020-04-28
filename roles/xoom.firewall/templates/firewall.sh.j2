@@ -8,8 +8,19 @@ iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
 iptables -A INPUT -d 127.0.0.0/8 -j ACCEPT
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A INPUT -i docker+ -j ACCEPT
-iptables -A INPUT -p  tcp --dport 80 -j ACCEPT
-iptables -A INPUT -p  tcp --dport 443 -j ACCEPT
+{% if web_allow_from is defined %}
+# allow web from several hosts
+iptables -A INPUT -p tcp --dport 80 -s 45.142.214.244  -j ACCEPT # allow from nagios
+iptables -A INPUT -p tcp --dport 443 -s 45.142.214.244  -j ACCEPT # allow from nagios
+{% for i in web_allow_from %}
+iptables -A INPUT -p tcp --dport 80 -s {{ i }} -j ACCEPT
+iptables -A INPUT -p tcp --dport 443 -s {{ i }} -j ACCEPT
+{% endfor %}
+{% else %}
+# allow web from all
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+{% endif %}
 iptables -A INPUT -p  tcp --dport 5666  -s {{ vpn1 }}  -j ACCEPT
 iptables -A INPUT -p  icmp -s {{ vpn1 }} -j ACCEPT
 iptables -A INPUT -s {{ vpn1 }} -p tcp -m tcp --dport 22 -j ACCEPT

@@ -22,17 +22,7 @@
 
 #################### Firewall:
 
-- hosts: masters:proxies:cdns:docker1:w1
-  become: True
-  gather_facts: yes
-  roles:
-    - xoom.firewall
-  vars:
-    vpn1: 45.142.214.244 
-    vpn2: 45.153.231.197
-    m1:   91.218.215.10
-    m2:   91.218.215.14
-
+- import_playbook: __xoom.firewall.yml 
 
 ##################### NRPE agent for monitoring:
 
