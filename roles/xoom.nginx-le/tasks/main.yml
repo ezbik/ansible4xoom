@@ -29,6 +29,7 @@
             - nginx
             - certbot
             - ssl-cert
+            - curl
         state: present
         install_recommends: no
 
