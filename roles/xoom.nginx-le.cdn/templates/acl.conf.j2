@@ -1,0 +1,11 @@
+
+{% if web_allow_from is defined %}
+# allow web from several hosts
+allow 127.0.0.1/8;
+{% for i in web_allow_from %}
+allow {{ i }};
+{% endfor %}
+{% else %}
+# allow web from all ; empty ACL
+{% endif %}
+
