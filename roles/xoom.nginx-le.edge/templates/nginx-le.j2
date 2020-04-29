@@ -105,7 +105,7 @@ server {
 
 ######## users auth start
     set $auth_success 0;
-    if ($http_user_agent ~ "(hey/0|Apple TV)" ) { set $auth_success 1; }
+    if ($http_user_agent ~ "(Apple TV)" ) { set $auth_success 1; }
     if ($request_uri ~ "/([\w\d\-]{36})/(master|vs0)") { set $movie_uuid_from_url $1; }
     if ($cookie_movie_token ~ "([\w\d\-]{36})") { set $movie_uuid_from_cookie $1; }
     if ($movie_uuid_from_cookie = $movie_uuid_from_url ) { set $auth_success 1; }

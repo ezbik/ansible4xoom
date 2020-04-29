@@ -1,0 +1,15 @@
+
+---
+- hosts: 
+    - proxies
+
+  become: False
+  gather_facts: yes
+
+  pre_tasks:
+
+  roles:
+    - xoom.nginx-le
+
+  vars:
+

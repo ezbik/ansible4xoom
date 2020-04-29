@@ -47,8 +47,11 @@
   - name: Remove default nginx config
     file: name=/etc/nginx/sites-enabled/default state=absent
 
-  - name: Remove local conf
-    file: name=/etc/nginx/conf.d/local.conf state=absent
+  - name: Put /etc/nginx/conf.d/local.conf
+    copy:
+        dest: /etc/nginx/conf.d/local.conf
+        src: local.conf
+    notify: restart nginx
 
 #  - name: Install system nginx config
 #    template:

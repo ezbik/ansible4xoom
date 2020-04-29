@@ -38,12 +38,8 @@
 
 #################### Nginx + Letsencrypt ( Proxies )
 
-- hosts:
-    - proxies
-  become: True
-  gather_facts: yes
-  roles:
-    - xoom.nginx-le
+- name: Nginx Proxies
+  import_playbook: __xoom.nginx-le.yml
 
 #################### Nginx ( CDNS )
 
