@@ -79,9 +79,7 @@
       creates: /etc/letsencrypt/accounts
 
   - name: Create letsencrypt certificate
-    shell: certbot certonly -n --webroot -w /var/www/letsencrypt {{ domains_certbot }}
-    args:
-      creates: /etc/letsencrypt/live/{{ domains_1st }}
+    shell: certbot certonly -n --webroot -w /var/www/letsencrypt --expand {{ domains_certbot }}
     when: ssltype == "letsencrypt"
 
   - name: Generate dhparams
