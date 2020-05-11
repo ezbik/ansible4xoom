@@ -5,6 +5,7 @@
     - cdns
     - docker1
     - w1
+    - edge
 
   become: True
   gather_facts: yes
