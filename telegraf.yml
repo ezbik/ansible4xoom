@@ -5,6 +5,8 @@
     - cdns
     - proxies
     - masters
+    - edge
+    - misc
 
   become: False
   gather_facts: yes
