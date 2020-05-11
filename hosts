@@ -21,6 +21,7 @@ cdn2        ansible_host=158.69.224.87 ssltype=fake backend_type="local" root_fo
 
 [edge]
 cdn3        ansible_host=54.39.132.242 ssltype=letsencrypt  backend_servers='["149.56.20.233", "158.69.224.87"]' domains_list='["cdn3.xoomtv.net", "markcdn3.xoomtv.net"]'
+edge1       ansible_host=147.135.16.150 ssltype=letsencrypt  backend_servers='["149.56.20.233", "158.69.224.87"]' domains_list='["edge1.xoomtv.net", "edge1.tvxoom.live"]'
 
 [misc]
 
