@@ -109,6 +109,13 @@
       job: certbot certonly -n --webroot -w /var/www/letsencrypt {{ domains_certbot }} && service nginx reload
     when: ssltype == "letsencrypt"
 
+  - name: Creates PATH env entry on top of crontab
+    cron:
+      name: PATH
+      env: yes
+      job: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    when: ssltype == "letsencrypt"
+
 #  - name: put nginx vhost
 #    template:
 #        src: vhost.j2
