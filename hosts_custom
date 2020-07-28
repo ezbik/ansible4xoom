@@ -1,0 +1,38 @@
+[vpnservers]
+vpn1        ansible_host=45.142.214.244
+vpn2        ansible_host=45.153.231.197
+
+[masters]
+
+master1     ansible_host=91.218.215.10
+master2     ansible_host=91.218.215.14
+
+[proxies]
+
+proxy2      ansible_host=51.161.11.10 ssltype=letsencrypt   domains_list='["xoomtv.net", "prod.engine.xoomtv.net", "prod.dashboard.xoomtv.net" ]' backend=http://104.248.110.212
+proxy1      ansible_host=51.161.11.11 ssltype=letsencrypt   domains_list='["test.xoomtv.net"]' backend="http://163.172.59.160:4000"
+proxymark1  ansible_host=158.69.62.153 ssltype=letsencrypt   domains_list='["tvxoom.live", "engine.tvxoom.live"]' backend=http://104.248.110.212
+proxyfit2   ansible_host=192.95.37.89 ssltype=letsencrypt   domains_list='["zoomfitness.net"]' backend="http://192.95.37.89:4000"
+proxy_lp    ansible_host=185.235.129.152 ssltype=letsencrypt   domains_list='["xoomtv.online", "xoomflix.com"]' backend="http://192.95.37.89:4000"
+
+[cdns]
+
+#cdntest     ansible_host=192.99.62.208 ssltype=fake         backend=http://127.0.0.1:4000  domains_list='["cdntest.xoomtv.net"]' 
+#cdn1        ansible_host=149.56.20.233 ssltype=letsencrypt  backend="http://127.0.0.1:4000" domains_list='["cdn1.xoomtv.net"]'
+cdn1         ansible_host=149.56.20.233 ssltype=fake backend_type="local" root_folder="/var/storage" domains_list='["fake"]' web_allow_from='["147.135.16.150"]'
+cdn2         ansible_host=158.69.224.87 ssltype=fake backend_type="local" root_folder="/var/storage" domains_list='["fake"]' web_allow_from='["147.135.16.150"]'
+storage2     ansible_host=51.79.19.199 ssltype=fake backend_type="local" root_folder="/var/storage" domains_list='["fake"]' web_allow_from='["147.135.16.150"]'
+storage2_rep ansible_host=149.56.18.178 ssltype=fake backend_type="local" root_folder="/var/storage" domains_list='["fake"]' web_allow_from='["147.135.16.150"]'
+
+[edge]
+
+cdn3        ansible_host=54.39.132.242 ssltype=letsencrypt  backend_servers='["149.56.20.233", "158.69.224.87"]' domains_list='["cdn3.xoomtv.net", "markcdn3.xoomtv.net", "cdn3.tvxoom.live"]'
+edge1       ansible_host=147.135.16.150 ssltype=letsencrypt  backend_servers='["51.79.19.199", "149.56.18.178"]' domains_list='["edge1.xoomtv.net", "edge1.tvxoom.live"]'
+
+[misc]
+
+docker1     ansible_host=51.79.66.151
+w1          ansible_host=51.79.70.84
+kub_m       ansible_host=206.81.10.61
+kub_w       ansible_host=206.189.226.7
+image_storage ansible_host=163.172.59.160
