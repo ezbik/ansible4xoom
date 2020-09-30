@@ -19,7 +19,10 @@ upstream backend {
 # 1M zone can store about 8 thousand keys. 
 # inactive : max time from last access , after which object is deleted
 
-proxy_cache_path /var/lib/nginx/zone1 levels=1:2 keys_zone=ZONE1:32m inactive=48h max_size=16g    use_temp_path=off;
+# use_temp_path=on is needed to create temporary files outside of RAM-based cache zone, to prevent its filling up.
+# for RAM-based cache zone: max_size = 50% of RAM minus 2GB = 14 GB.
+
+proxy_cache_path /var/lib/nginx/zone1 levels=1:2 keys_zone=ZONE1:32m inactive=48h max_size=14g    use_temp_path=on;
 proxy_cache_path /mnt/md0/zone2 levels=1:2 keys_zone=ZONE2:32m inactive=48h max_size=30000g use_temp_path=off;
 proxy_cache_path /mnt/md0/zone3 levels=1:2 keys_zone=ZONE3:8m  inactive=36h max_size=20000g    use_temp_path=off;
 
